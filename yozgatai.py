@@ -96,4 +96,81 @@ if st.session_state.oturum is None:
 
     with tab2:
         st.info("Aramıza katılmak için formu doldur.")
-        st.link_button("📝 Kayıt Formuna Git", KAYIT
+        st.link_button("📝 Kayıt Formuna Git", KAYIT_FORM_VIEW)
+
+    st.stop()
+
+# ------------------------------------------------------------------
+# 4. SOHBET ODASI
+# ------------------------------------------------------------------
+kullanici = st.session_state.oturum
+
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png", width=50)
+    st.title("👤 Profil")
+    st.write(f"Aktif Pilot: **{kullanici}**")
+    if st.button("Çıkış Yap"):
+        st.session_state.oturum = None
+        st.rerun()
+
+st.title("🚀 Geleceğin Yapay Zekası: YozgatAI")
+st.caption("Yozgat Şivesiyle Güçlendirilmiş Yapay Zeka Teknolojisi")
+
+# Geçmiş Mesajları Yükle
+if "mesajlar" not in st.session_state:
+    st.session_state.mesajlar = []
+    df_sohbet = verileri_oku(SOHBET_CSV)
+    if not df_sohbet.empty:
+        try:
+            # Sütunları otomatik bul (Zaman damgası varsa kaydır)
+            c_user, c_msg, c_role = 0, 1, 2
+            cols = [str(c).lower() for c in df_sohbet.columns]
+            if len(cols) > 0 and ("zaman" in cols[0] or "timestamp" in cols[0]):
+                 c_user, c_msg, c_role = 1, 2, 3
+            
+            gecmis = df_sohbet[df_sohbet.iloc[:, c_user].astype(str) == kullanici]
+            for _, row in gecmis.iterrows():
+                st.session_state.mesajlar.append({"role": row.iloc[c_role], "content": row.iloc[c_msg]})
+        except: pass
+
+# Mesajları Göster
+for m in st.session_state.mesajlar:
+    icon = "🌾" if m["role"] == "assistant" else None
+    with st.chat_message(m["role"], avatar=icon):
+        st.write(m["content"])
+
+# Yeni Mesaj Kutusu
+if soru := st.chat_input("Emmiye bir şeyler sor..."):
+    # 1. Kullanıcı Mesajını Ekle ve Göster
+    st.session_state.mesajlar.append({"role": "user", "content": soru})
+    with st.chat_message("user"):
+        st.write(soru)
+    
+    # 2. Arka Planda Form'a Kaydet (User)
+    try:
+        requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
+    except: pass
+
+    # 3. AI Cevabı Üret
+    try:
+        # Requirements güncellendiği için bu model artık çalışacak!
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"Sen Yozgatlı, samimi, bilge ve şiveli konuşan bir emmisin. Adın YozgatAI. Kullanıcının şu sorusuna Yozgat şivesiyle cevap ver: {soru}"
+        
+        with st.spinner("Emmi düşünüyor..."):
+            cevap_obj = model.generate_content(prompt)
+            cevap = cevap_obj.text
+        
+        # 4. Cevabı Ekle ve Göster
+        st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
+        with st.chat_message("assistant", avatar="🌾"):
+            st.write(cevap)
+            
+        # 5. Arka Planda Form'a Kaydet (AI)
+        requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
+        
+    except Exception as e:
+        st.error("⚠️ Bir hata oluştu kanki.")
+        st.warning(f"Hata detayı: {e}")
+        st.info("Eğer 404 hatası alıyorsan 'requirements.txt' dosyasını güncellememişsin demektir!")
