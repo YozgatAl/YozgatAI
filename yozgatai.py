@@ -40,20 +40,18 @@ def verileri_oku(url):
     except:
         return pd.DataFrame()
 
-# --- 3. OTURUM KONTROLÜ (DÜKKAN KAPISI) ---
-# Eğer oturum açılmamışsa bu kısım çalışır
+# --- 3. OTURUM KONTROLÜ ---
 if "oturum" not in st.session_state:
     st.session_state.oturum = None
 
 if st.session_state.oturum is None:
     st.title("🛡️ YozgatAI: Giriş Kapısı")
     
-    # Sekmeleri oluşturuyoruz
     tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
 
     # SEKME 1: GİRİŞ YAP
     with tab1:
-        st.subheader("Üye Girişi") # Başlık ekledim ki sekme dolu görünsün
+        st.subheader("Üye Girişi")
         giris_ad = st.text_input("Kullanıcı Adı", key="giris_ad_input")
         giris_sifre = st.text_input("Şifre", type="password", key="giris_sifre_input")
         
@@ -67,7 +65,6 @@ if st.session_state.oturum is None:
                     try:
                         k_col = [c for c in df.columns if 'kullanici' in c or 'ad' in c][0]
                         s_col = [c for c in df.columns if 'sifre' in c or 'pass' in c][0]
-                        # Kontrol
                         kisi = df[(df[k_col].astype(str) == giris_ad) & (df[s_col].astype(str) == giris_sifre)]
                         if not kisi.empty:
                             st.session_state.oturum = giris_ad
@@ -82,8 +79,8 @@ if st.session_state.oturum is None:
     # SEKME 2: KAYIT OL
     with tab2:
         st.subheader("Yeni Kayıt")
-        yeni_ad = st.text_input("Belirleyeceğin Kullanıcı Adı", key="yeni_ad_input")
-        yeni_sifre = st.text_input("Belirleyeceğin Şifre", type="password", key="yeni_sifre_input")
+        yeni_ad = st.text_input("Yeni Kullanıcı Adı", key="yeni_ad_input")
+        yeni_sifre = st.text_input("Yeni Şifre", type="password", key="yeni_sifre_input")
         
         if st.button("Kayıt Ol", key="btn_kayit"):
             if len(yeni_ad) < 4:
@@ -91,7 +88,6 @@ if st.session_state.oturum is None:
             elif len(yeni_sifre) < 6:
                 st.error("Şifre en az 6 hane olsun.")
             else:
-                # İsim kontrolü
                 df = verileri_oku(UYELER_CSV)
                 if not df.empty and yeni_ad in df.to_string():
                     st.error("Bu isim alınmış.")
@@ -99,16 +95,19 @@ if st.session_state.oturum is None:
                     try:
                         veriler = {ENTRY_REG_USER: yeni_ad, ENTRY_REG_PASS: yeni_sifre}
                         r = requests.post(REGISTER_FORM_URL, data=veriler)
+                        
+                        # --- HATA DETAYI GÖSTEREN KISIM ---
                         if r.status_code == 200:
                             st.success(f"Kaydın oldu {yeni_ad}! Yan taraftan giriş yap.")
                         else:
-                            st.error("Kayıt başarısız. Form ayarlarını kontrol et.")
-                    except:
-                        st.error("İnternet hatası.")
+                            st.error(f"Kayıt Başarısız! HATA KODU: {r.status_code}")
+                            st.write("Google Form diyor ki:", r.text) # Hatanın detayını yazar
+                    except Exception as e:
+                        st.error(f"İnternet hatası: {e}")
 
-    st.stop() # Giriş yapılmadıysa aşağısı (Sohbet) görünmez!
+    st.stop() 
 
-# --- 4. SOHBET EKRANI (İÇERİSİ) ---
+# --- 4. SOHBET EKRANI ---
 kullanici = st.session_state.oturum
 st.title(f"🌾 Hoşgeldin {kullanici}")
 
@@ -116,7 +115,6 @@ if st.sidebar.button("Çıkış Yap"):
     st.session_state.oturum = None
     st.rerun()
 
-# Geçmiş
 if "mesajlar" not in st.session_state:
     st.session_state.mesajlar = []
     df = verileri_oku(SOHBET_CSV)
@@ -134,7 +132,6 @@ if "mesajlar" not in st.session_state:
 for m in st.session_state.mesajlar:
     with st.chat_message(m["role"]): st.write(m["content"])
 
-# Emmi
 model = genai.GenerativeModel('models/gemini-flash-latest', system_instruction="Sen Yozgatlı samimi bir emmisin. Şiveli konuş.")
 
 if soru := st.chat_input("Nörüyon..."):
