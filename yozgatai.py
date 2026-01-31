@@ -10,16 +10,16 @@ import time
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     
-    # TABLO BİLGİLERİ
+    # SENİN TABLO BİLGİLERİN
     SPREADSHEET_ID = "1uhO7562rbctBNe4O-FDWzjUsZKf--FOGVvSg4ETqQWA"
     UYELER_GID = "809867134"    
     SOHBET_GID = "1043430012"   
 
-    # LİNKLER
+    # VERİ OKUMA LİNKLERİ
     UYELER_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={UYELER_GID}"
     SOHBET_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={SOHBET_GID}"
 
-    # FORMLAR
+    # FORM LİNKLERİ
     KAYIT_FORM_VIEW = "https://docs.google.com/forms/d/e/1FAIpQLSfmWqswFyM7P7UGxkWnNzPjUZqNTcllt34lvudQZ9vM34LoKA/viewform"
     CHAT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfzA0QcL_-RvuBf8sMauuawvrjgReFlYme4GlBlgfcLVP_hpw/formResponse"
     
@@ -36,7 +36,7 @@ st.set_page_config(page_title="YozgatAI", page_icon="🚀", layout="centered")
 genai.configure(api_key=API_KEY)
 
 # ------------------------------------------------------------------
-# 2. VERİ OKUMA VE GİRİŞ MANTIĞI
+# 2. VERİ OKUMA
 # ------------------------------------------------------------------
 def verileri_oku(url):
     try:
@@ -58,7 +58,7 @@ if st.session_state.oturum is None:
     tab1, tab2 = st.tabs(["🔑 Giriş Yap", "📝 Kayıt Ol"])
 
     with tab1:
-        st.info("Kullanıcı adını ve şifreni küçük-büyük harf fark etmeksizin yazabilirsin.")
+        st.info("Kullanıcı adını ve şifreni küçük-büyük harf fark etmeksizin yaz.")
         giris_ad = st.text_input("Kullanıcı Adı")
         giris_sifre = st.text_input("Şifre", type="password")
         
@@ -66,24 +66,16 @@ if st.session_state.oturum is None:
             df = verileri_oku(UYELER_CSV)
             
             if not df.empty:
-                # Girdileri temizle
                 g_ad = str(giris_ad).strip().lower()
                 g_sifre = str(giris_sifre).strip().lower()
-                
                 basarili = False
                 
-                # 🕵️‍♂️ AKILLI TARAMA SİSTEMİ
-                # Sütun sırası kaymış olsa bile (Zaman damgası yüzünden),
-                # yan yana duran (Ad + Şifre) ikilisini bulur.
+                # Akıllı Tarama (Sütun kaymasına karşı)
                 for index, row in df.iterrows():
-                    # Satırdaki tüm hücreleri gez
                     for i in range(len(row) - 1):
                         try:
-                            # Yan yana iki hücreyi al
                             hucre1 = str(row.iloc[i]).strip().lower()
                             hucre2 = str(row.iloc[i+1]).strip().lower()
-                            
-                            # Eğer bu ikili bizim girişle eşleşiyorsa tamamdır!
                             if hucre1 == g_ad and hucre2 == g_sifre:
                                 basarili = True
                                 break
@@ -96,10 +88,7 @@ if st.session_state.oturum is None:
                     time.sleep(1)
                     st.rerun()
                 else:
-                    # Hata ayıklama için ipucu (Kullanıcıya tablo başlıklarını göster)
-                    st.error("Gardaşım eşleşme olmadı.")
-                    st.warning(f"Sistem şu sütunları okudu: {list(df.columns)}")
-                    st.caption("Eğer burada 'Zaman Damgası' görüyorsan sorun yok, ben onu hallettim. Adını/Şifreni kontrol et.")
+                    st.error("Gardaşım eşleşme olmadı. Adını doğru yazdın mı?")
             else:
                 st.error("Liste boş veya okunamadı.")
 
@@ -126,27 +115,12 @@ if "mesajlar" not in st.session_state:
     df_sohbet = verileri_oku(SOHBET_CSV)
     if not df_sohbet.empty:
         try:
-            # Sohbet tablosunda da zaman damgası olabilir, o yüzden
-            # Kullanıcı adını ararken sütunları tarayalım
-            c_user = -1
-            c_msg = -1
-            c_role = -1
-            
-            # Sütun isimlerinden yerlerini bulmaya çalış
+            # Sütunları bulmaya çalış (Zaman damgası kaydırmasına karşı)
+            c_user, c_msg, c_role = 0, 1, 2
             cols = [c.lower() for c in df_sohbet.columns]
-            for i, col in enumerate(cols):
-                if "kullanıcı" in col or "user" in col: c_user = i
-                elif "mesaj" in col or "message" in col: c_msg = i
-                elif "rol" in col or "role" in col: c_role = i
+            if "zaman" in cols[0] or "time" in cols[0] or "timestamp" in cols[0]:
+                 c_user, c_msg, c_role = 1, 2, 3
             
-            # Bulamazsa varsayılan (Zaman damgası varsa kaydır)
-            if c_user == -1: 
-                # Zaman damgası varsa (1, 2, 3), yoksa (0, 1, 2)
-                if "zaman" in cols[0] or "time" in cols[0]:
-                    c_user, c_msg, c_role = 1, 2, 3
-                else:
-                    c_user, c_msg, c_role = 0, 1, 2
-
             gecmis = df_sohbet[df_sohbet.iloc[:, c_user].astype(str) == kullanici]
             for _, row in gecmis.iterrows():
                 st.session_state.mesajlar.append({"role": row.iloc[c_role], "content": row.iloc[c_msg]})
@@ -166,8 +140,9 @@ if soru := st.chat_input("Emmi burda, sor hele..."):
     except: pass
 
     try:
-        # Sen 2. yolu seçtin (requirements güncelledin), o yüzden Flash motoru çalışır!
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 🛠️ İŞTE ÇÖZÜM BURADA: 'gemini-pro' (Her sürümde çalışır)
+        model = genai.GenerativeModel('gemini-pro')
+        
         prompt = f"Sen Yozgatlı, samimi, bilge ve şiveli konuşan bir emmisin. Adın YozgatAI. Kullanıcının şu sorusuna Yozgat şivesiyle cevap ver: {soru}"
         
         cevap_obj = model.generate_content(prompt)
@@ -181,4 +156,4 @@ if soru := st.chat_input("Emmi burda, sor hele..."):
         
     except Exception as e:
         st.error("⚠️ Bir hata oluştu gardaşım.")
-        st.write(e)
+        st.write(f"Hata detayı: {e}")
