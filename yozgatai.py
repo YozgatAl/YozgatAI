@@ -82,31 +82,33 @@ if soru := st.chat_input("Emmiye sor hele..."):
     st.session_state.mesajlar.append({"role": "user", "content": soru})
     with st.chat_message("user"): st.write(soru)
     
-    # --- AI CEVAP ÜRETME (EN SAĞLAM VE YENİ YÖNTEM) ---
     try:
-        # 1. Modeli doğrudan en güncel isimle çağırıyoruz
-        # Not: requirements.txt dosyasında google-generativeai>=0.8.3 olmalı
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 🕵️‍♂️ GARANTİ MODEL ÇAĞIRMA
+        # 'gemini-1.5-flash' yerine 'models/gemini-pro' veya sadece 'gemini-pro' deniyoruz.
+        # Bu isim en eski kütüphanelerde bile hata vermez.
         
-        # 2. Şiveli talimatı doğrudan prompt'a gömüyoruz
-        prompt = f"Sen Yozgatlı, bilge ve samimi bir emmisin. Şiveli konuş. Soru: {soru}"
-        
-        # 3. Cevabı üret
-        cevap_obj = model.generate_content(prompt)
-        cevap = cevap_obj.text
-        
+        try:
+            model = genai.GenerativeModel('gemini-pro')
+            prompt = f"Sen Yozgatlı, bilge ve şiveli bir emmisin. Adın YozgatAI. Şiveli cevap ver: {soru}"
+            cevap = model.generate_content(prompt).text
+        except:
+            # Eğer o da olmazsa, en çıplak haliyle dene
+            model = genai.GenerativeModel('models/gemini-pro')
+            prompt = f"Sen Yozgatlı, bilge ve şiveli bir emmisin. Adın YozgatAI. Şiveli cevap ver: {soru}"
+            cevap = model.generate_content(prompt).text
+
         if cevap:
             st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
             with st.chat_message("assistant", avatar="🌾"):
                 st.write(cevap)
             
-            # Formlara kaydetme işlemini de buraya ekle...
-            try:
-                requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
-                requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
-            except: pass
-            
+            # Kayıt işlemleri
+            requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
+            requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
+
     except Exception as e:
-        # Eğer hala hata verirse, teknik detayı buraya yazdırıyoruz
-        st.error(f"Gardaşım sistemde bir kertik var: {e}")
-        st.info("İpucu: Eğer 'API_KEY_INVALID' diyorsa Secrets'ı, '404' diyorsa requirements.txt'yi kontrol et.")
+        # Hata devam ederse burası çalışır
+        st.error(f"Emmi hala dalgın: {e}")
+        # Kütüphane sürümünü ekrana bas ki suçluyu görelim
+        import google.generativeai as gai
+        st.info(f"Sistemdeki Kütüphane Sürümü: {gai.__version__}")
