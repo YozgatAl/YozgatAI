@@ -66,19 +66,26 @@ if st.session_state.oturum is None:
             df = verileri_oku(UYELER_CSV)
             if not df.empty:
                 try:
-                    # Sütunları isme göre değil, sıraya göre bulalım (Hata payı sıfır olsun)
-                    # 1. Sütun: Kullanıcı, 2. Sütun: Şifre varsayıyoruz.
-                    kisi = df[(df.iloc[:, 0].astype(str) == giris_ad) & (df.iloc[:, 1].astype(str) == giris_sifre)]
+                    # Girdiğimiz isimleri temizleyelim (Boşlukları at, küçük harfe çevir)
+                    temiz_giris_ad = giris_ad.strip().lower()
+                    temiz_giris_sifre = giris_sifre.strip().lower()
+                    
+                    # Tablodaki verileri de temizleyip karşılaştıralım
+                    # iloc[:,0] -> 1. sütun (Kullanıcı), iloc[:,1] -> 2. sütun (Şifre)
+                    kisi = df[
+                        (df.iloc[:, 0].astype(str).str.strip().str.lower() == temiz_giris_ad) & 
+                        (df.iloc[:, 1].astype(str).str.strip().str.lower() == temiz_giris_sifre)
+                    ]
                     
                     if not kisi.empty:
-                        st.session_state.oturum = giris_ad
+                        st.session_state.oturum = giris_ad.strip() # Orjinal adı oturuma al
                         st.rerun()
                     else:
-                        st.error("Adın veya şifren yanlış gardaşım.")
-                except:
-                    st.error("Tablo yapısı yadırgandı.")
-            else:
-                st.error("Defter okunamadı. Tabloyu 'Paylaş: Herkes' yaptığından emin ol!")
+                        # Hata verince tabloda ne gördüğünü de yazsın ki anlayalım
+                        st.error(f"Adın veya şifren yanlış gardaşım. (Yazdığın: {temiz_giris_ad})")
+                        st.info("Tablodaki ilk isimle karşılaştırılıyor, harflere dikkat et!")
+                except Exception as e:
+                    st.error(f"Tablo yapısı yadırgandı: {e}")
 
     with tab2:
         st.info("Kayıt olmak için aşağıdaki butona bas, formu doldur ve buraya dön.")
