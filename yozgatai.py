@@ -7,27 +7,28 @@ import requests
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     
-    # SENİN VERDİĞİN TABLO BİLGİLERİ (Burası mühim!)
-    SPREADSHEET_ID = "1hjLh1OqVfzuv5sM3o_NDlGc67mt5Anu3Bd_tPOZDhDg"
-    UYELER_GID = "609965995" # Üyeler sayfası
-    SOHBET_GID = "0"         # Sohbet sayfası
+    # 🚨 BURAYA YENİ GOOGLE E-TABLO ID'SİNİ YAPIŞTIR!
+    SPREADSHEET_ID = "1hjLh1OqVfzuv5sM3o_NDlGc67mt5Anu3Bd_tPOZDhDg" 
+    
+    # 🚨 SOHBET KAYIT FORMU BİLGİLERİ (İkinci açtığın form)
+    CHAT_FORM_URL = "https://docs.google.com/forms/d/e/YENI_SOHBET_FORM_ID/formResponse"
+    ENTRY_CHAT_USER = "entry.XXXXX" # Kullanıcı kutusu
+    ENTRY_CHAT_MSG = "entry.YYYYY"  # Mesaj (Paragraf) kutusu
+    ENTRY_CHAT_ROLE = "entry.ZZZZZ" # Rol kutusu
 
-    # LİNKLERİ OLUŞTURUYORUZ
+    # 🚨 KAYIT FORMU LİNKİ (Birinci açtığın form - Giriş için)
+    KAYIT_FORM_VIEW = "https://docs.google.com/forms/d/e/YENI_KAYIT_FORM_ID/viewform"
+
+    # GID NUMARALARI (Senin verdiklerin)
+    UYELER_GID = "809867134"   # Üye Listesi Sekmesi
+    SOHBET_GID = "1043430012"  # Sohbet Geçmişi Sekmesi
+
+    # CSV LİNKLERİ
     UYELER_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={UYELER_GID}"
     SOHBET_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={SOHBET_GID}"
-    
-    # FORM LİNKLERİ
-    # Kayıt Formunun Orijinal Linki (Kullanıcıyı buraya göndereceğiz)
-    KAYIT_LINKI = "https://docs.google.com/forms/d/e/1FAIpQLSe_3gXSSc9RY5l6pqvv_SHQ5quV15MYypfFlASu2lzmY3sijQ/viewform"
-    
-    # Sohbet Formu (Botun konuşması için)
-    CHAT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfAANTySmXphVhxNLT76RN-2n7MVjnX7WyNLJrH73qRZxPcrg/formResponse"
-    ENTRY_CHAT_USER = "entry.1594572083"
-    ENTRY_CHAT_MSG = "entry.1966407140"
-    ENTRY_CHAT_ROLE = "entry.1321459799"
 
 except Exception as e:
-    st.error(f"Ayarlarda hata var gardaşım: {e}")
+    st.error(f"Ayarlarda bir kertik var gardaşım: {e}")
     st.stop()
 
 genai.configure(api_key=API_KEY)
@@ -36,6 +37,7 @@ st.set_page_config(page_title="YozgatAI", page_icon="🌾")
 # --- 2. YARDIMCI İŞLER ---
 def verileri_oku(url):
     try:
+        # Dosya > Paylaş > Web'de Yayınla dediysen tıkır tıkır okur
         return pd.read_csv(url, on_bad_lines='skip')
     except:
         return pd.DataFrame()
@@ -48,9 +50,8 @@ if st.session_state.oturum is None:
     st.title("🛡️ YozgatAI: Giriş Kapısı")
     tab1, tab2 = st.tabs(["Giriş Yap", "Kayıt Ol"])
 
-    # SEKME 1: GİRİŞ YAP
     with tab1:
-        st.info("Kayıt olduysan bilgilerini gir gardaşım.")
+        st.subheader("Üye Girişi")
         giris_ad = st.text_input("Kullanıcı Adı", key="giris_ad")
         giris_sifre = st.text_input("Şifre", type="password", key="giris_sifre")
         
@@ -59,37 +60,27 @@ if st.session_state.oturum is None:
             if not df.empty:
                 df.columns = [c.lower() for c in df.columns]
                 try:
-                    # Tabloda isim ve şifre sütunlarını bul
                     k_col = [c for c in df.columns if any(x in c for x in ['kullanici', 'ad', 'entry'])][0]
                     s_col = [c for c in df.columns if any(x in c for x in ['sifre', 'pass'])][0]
-                    
-                    # Kontrol et
                     kisi = df[(df[k_col].astype(str) == giris_ad) & (df[s_col].astype(str) == giris_sifre)]
                     
                     if not kisi.empty:
-                        st.success("Giriş Başarılı! Yönlendiriliyorsun...")
                         st.session_state.oturum = giris_ad
                         st.rerun()
                     else:
-                        st.error("Adın veya şifren yanlış. Kayıt oldun mu?")
+                        st.error("Adın veya şifren yanlış kurban.")
                 except:
-                    st.error("Sistem tabloyu okuyamadı. Tablo boş olabilir mi?")
+                    st.error("Sütunlar bulunamadı. Tablo başlıklarını kontrol et.")
             else:
-                st.error("Üye defteri boş veya okunamıyor. (Tabloyu 'Herkes'e açtın mı?)")
+                st.error("Üye listesi okunamadı. 'Web'de Yayınla' açık mı?")
 
-    # SEKME 2: KAYIT OL (KESİN ÇÖZÜM)
     with tab2:
-        st.warning("⚠️ Google robotlara izin vermiyor. O yüzden aşağıdaki butona bas, açılan sayfada kaydını yap gel.")
-        
-        # Direkt form sayfasına gönderiyoruz
-        st.link_button("📝 Kayıt Formunu Aç (Tıkla)", KAYIT_LINKI)
-        
-        st.write("---")
-        st.write("Kaydını yaptıktan sonra **Giriş Yap** sekmesine dönüp girebilirsin.")
+        st.info("Kayıt olmak için aşağıdaki butona tıkla, formu doldur ve buraya gel.")
+        st.link_button("📝 Şimdi Kayıt Ol", KAYIT_FORM_VIEW)
 
     st.stop()
 
-# --- 4. SOHBET EKRANI ---
+# --- 4. SOHBET EKRANI (İçerisi) ---
 kullanici = st.session_state.oturum
 st.title(f"🌾 Selamünaleyküm {kullanici}!")
 
@@ -97,7 +88,7 @@ if st.sidebar.button("Çıkış Yap"):
     st.session_state.oturum = None
     st.rerun()
 
-# Geçmiş
+# GEÇMİŞİ OKU
 if "mesajlar" not in st.session_state:
     st.session_state.mesajlar = []
     df = verileri_oku(SOHBET_CSV)
@@ -113,6 +104,7 @@ if "mesajlar" not in st.session_state:
                 st.session_state.mesajlar.append({"role": row[r_col], "content": row[m_col]})
         except: pass
 
+# EKRANA BAS
 for m in st.session_state.mesajlar:
     with st.chat_message(m["role"]): st.write(m["content"])
 
@@ -121,7 +113,8 @@ model = genai.GenerativeModel('models/gemini-flash-latest', system_instruction="
 if soru := st.chat_input("Nörüyon..."):
     st.session_state.mesajlar.append({"role": "user", "content": soru})
     with st.chat_message("user"): st.write(soru)
-    # Sohbeti kaydet (Sohbet formunda genelde 401 vermez ama verirse burayı da try-except yaparız)
+    
+    # FORMA GÖNDER (Kullanıcı Mesajı)
     try:
         requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
     except: pass
@@ -130,6 +123,8 @@ if soru := st.chat_input("Nörüyon..."):
         cevap = model.generate_content(soru).text
         st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
         with st.chat_message("assistant"): st.write(cevap)
+        
+        # FORMA GÖNDER (Bot Cevabı)
         requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
     except:
         st.error("Emmi cevap veremedi.")
