@@ -77,4 +77,75 @@ if st.session_state.oturum is None:
                     except:
                         st.error("Sistem hatası: Tablo sütunları bulunamadı.")
                 else:
-                    st.error("Üye listesine
+                    st.error("Üye listesine ulaşılamıyor.")
+
+    # SEKME 2: KAYIT OL
+    with tab2:
+        st.subheader("Yeni Kayıt")
+        yeni_ad = st.text_input("Belirleyeceğin Kullanıcı Adı", key="yeni_ad_input")
+        yeni_sifre = st.text_input("Belirleyeceğin Şifre", type="password", key="yeni_sifre_input")
+        
+        if st.button("Kayıt Ol", key="btn_kayit"):
+            if len(yeni_ad) < 4:
+                st.error("İsim en az 4 harf olsun.")
+            elif len(yeni_sifre) < 6:
+                st.error("Şifre en az 6 hane olsun.")
+            else:
+                # İsim kontrolü
+                df = verileri_oku(UYELER_CSV)
+                if not df.empty and yeni_ad in df.to_string():
+                    st.error("Bu isim alınmış.")
+                else:
+                    try:
+                        veriler = {ENTRY_REG_USER: yeni_ad, ENTRY_REG_PASS: yeni_sifre}
+                        r = requests.post(REGISTER_FORM_URL, data=veriler)
+                        if r.status_code == 200:
+                            st.success(f"Kaydın oldu {yeni_ad}! Yan taraftan giriş yap.")
+                        else:
+                            st.error("Kayıt başarısız. Form ayarlarını kontrol et.")
+                    except:
+                        st.error("İnternet hatası.")
+
+    st.stop() # Giriş yapılmadıysa aşağısı (Sohbet) görünmez!
+
+# --- 4. SOHBET EKRANI (İÇERİSİ) ---
+kullanici = st.session_state.oturum
+st.title(f"🌾 Hoşgeldin {kullanici}")
+
+if st.sidebar.button("Çıkış Yap"):
+    st.session_state.oturum = None
+    st.rerun()
+
+# Geçmiş
+if "mesajlar" not in st.session_state:
+    st.session_state.mesajlar = []
+    df = verileri_oku(SOHBET_CSV)
+    if not df.empty:
+        try:
+            df.columns = [c.lower() for c in df.columns]
+            k_col = [c for c in df.columns if 'kullanici' in c][0]
+            m_col = [c for c in df.columns if 'mesaj' in c][0]
+            r_col = [c for c in df.columns if 'rol' in c][0]
+            gecmis = df[df[k_col].astype(str).str.lower() == kullanici.lower()]
+            for _, row in gecmis.iterrows():
+                st.session_state.mesajlar.append({"role": row[r_col], "content": row[m_col]})
+        except: pass
+
+for m in st.session_state.mesajlar:
+    with st.chat_message(m["role"]): st.write(m["content"])
+
+# Emmi
+model = genai.GenerativeModel('models/gemini-flash-latest', system_instruction="Sen Yozgatlı samimi bir emmisin. Şiveli konuş.")
+
+if soru := st.chat_input("Nörüyon..."):
+    st.session_state.mesajlar.append({"role": "user", "content": soru})
+    with st.chat_message("user"): st.write(soru)
+    requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
+    
+    try:
+        cevap = model.generate_content(soru).text
+        st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
+        with st.chat_message("assistant"): st.write(cevap)
+        requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
+    except:
+        st.error("Emmi cevap veremedi.")
