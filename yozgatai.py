@@ -20,80 +20,48 @@ try:
     ENTRY_CHAT_MSG  = "entry.1854177336"
     ENTRY_CHAT_ROLE = "entry.698806781"
 except Exception as e:
-    st.error(f"Ayarlarda sıkıntı var: {e}")
-    st.stop()
+    st.error(f"Ayarlar uçmuş: {e}"); st.stop()
 
-# ------------------------------------------------------------------
-# 2. AYARLAR
-# ------------------------------------------------------------------
-st.set_page_config(page_title="YozgatAI", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="YozgatAI", page_icon="🚀")
 genai.configure(api_key=API_KEY)
 
 def verileri_oku(url):
     try:
         taze_url = f"{url}&t={int(time.time())}"
         return pd.read_csv(taze_url, on_bad_lines='skip')
-    except:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 # ------------------------------------------------------------------
-# 3. GİRİŞ KISMI
+# 3. GİRİŞ SİSTEMİ
 # ------------------------------------------------------------------
-if "oturum" not in st.session_state:
-    st.session_state.oturum = None
+if "oturum" not in st.session_state: st.session_state.oturum = None
 
 if st.session_state.oturum is None:
     st.title("🚀 Geleceğin Yapay Zekası: YozgatAI")
-    
     tab1, tab2 = st.tabs(["🔑 Giriş Yap", "📝 Kayıt Ol"])
-
     with tab1:
-        st.info("Kullanıcı adını ve şifreni gir.")
         giris_ad = st.text_input("Kullanıcı Adı")
         giris_sifre = st.text_input("Şifre", type="password")
-        
         if st.button("Sisteme Gir"):
             df = verileri_oku(UYELER_CSV)
             if not df.empty:
-                g_ad = str(giris_ad).strip().lower()
-                g_sifre = str(giris_sifre).strip().lower()
+                g_ad, g_sifre = str(giris_ad).strip().lower(), str(giris_sifre).strip().lower()
                 basarili = False
-                
-                for index, row in df.iterrows():
+                for _, row in df.iterrows():
                     for i in range(len(row) - 1):
-                        try:
-                            if str(row.iloc[i]).strip().lower() == g_ad and str(row.iloc[i+1]).strip().lower() == g_sifre:
-                                basarili = True
-                                break
-                        except: continue
+                        if str(row.iloc[i]).strip().lower() == g_ad and str(row.iloc[i+1]).strip().lower() == g_sifre:
+                            basarili = True; break
                     if basarili: break
-                
                 if basarili:
                     st.session_state.oturum = giris_ad
-                    st.success("Giriş Başarılı! Roket kalkıyor... 🚀")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Gardaşım eşleşme olmadı.")
-            else:
-                st.error("Liste boş.")
-
-    with tab2:
-        st.link_button("📝 Kayıt Formuna Git", KAYIT_FORM_VIEW)
-
+                    st.success("Giriş Tamam! 🚀"); time.sleep(1); st.rerun()
+                else: st.error("Hatalı giriş!")
+    with tab2: st.link_button("📝 Kayıt Formu", KAYIT_FORM_VIEW)
     st.stop()
 
 # ------------------------------------------------------------------
-# 4. SOHBET KISMI
+# 4. SOHBET ODASI
 # ------------------------------------------------------------------
-kullanici = st.session_state.oturum
-
-with st.sidebar:
-    st.title(f"👤 {kullanici}")
-    if st.button("Çıkış Yap"):
-        st.session_state.oturum = None
-        st.rerun()
-
 st.title("🚀 Geleceğin Yapay Zekası: YozgatAI")
 
 if "mesajlar" not in st.session_state:
@@ -101,46 +69,51 @@ if "mesajlar" not in st.session_state:
     df_sohbet = verileri_oku(SOHBET_CSV)
     if not df_sohbet.empty:
         try:
-            c_user, c_msg, c_role = 0, 1, 2
-            cols = [str(c).lower() for c in df_sohbet.columns]
-            if len(cols) > 0 and ("zaman" in cols[0] or "timestamp" in cols[0]):
-                 c_user, c_msg, c_role = 1, 2, 3
-            
-            gecmis = df_sohbet[df_sohbet.iloc[:, c_user].astype(str) == kullanici]
+            c_user, c_msg, c_role = (1, 2, 3) if "zaman" in str(df_sohbet.columns[0]).lower() else (0, 1, 2)
+            gecmis = df_sohbet[df_sohbet.iloc[:, c_user].astype(str) == st.session_state.oturum]
             for _, row in gecmis.iterrows():
-                st.session_state.mesajlar.append({"role": row.iloc[c_role], "content": row.iloc[c_msg]})
+                st.session_state.mesajlar.append({"role": row.iloc[c_role], "content": row.iloc[1]})
         except: pass
 
 for m in st.session_state.mesajlar:
-    with st.chat_message(m["role"], avatar="🌾" if m["role"] == "assistant" else None):
-        st.write(m["content"])
+    with st.chat_message(m["role"], avatar="🌾" if m["role"] == "assistant" else None): st.write(m["content"])
 
-if soru := st.chat_input("Emmiye bir şeyler sor..."):
+if soru := st.chat_input("Emmiye sor hele..."):
     st.session_state.mesajlar.append({"role": "user", "content": soru})
     with st.chat_message("user"): st.write(soru)
     
-    try: requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
-    except: pass
-
+    # AI CEVAP ÜRETME (Garantili Yöntem)
     try:
-        # -----------------------------------------------------------
-        # 🔥 BURASI DEĞİŞTİ: ARTIK SADECE 'gemini-pro' KULLANIYORUZ
-        # Bu model eski/yeni her sürümde çalışır.
-        # -----------------------------------------------------------
-        model = genai.GenerativeModel('gemini-pro')
+        # Denenecek model isimleri (Google'ın farklı sürümleri için)
+        denenecek_modeller = [
+            "gemini-1.5-flash",
+            "gemini-pro",
+            "models/gemini-1.0-pro",
+            "models/gemini-pro"
+        ]
         
-        prompt = f"Sen Yozgatlı, samimi, bilge ve şiveli konuşan bir emmisin. Adın YozgatAI. Kullanıcının şu sorusuna Yozgat şivesiyle cevap ver: {soru}"
+        cevap = None
+        prompt = f"Sen Yozgatlı, bilge ve şiveli bir emmisin. Şiveli cevap ver: {soru}"
         
-        cevap_obj = model.generate_content(prompt)
-        cevap = cevap_obj.text
+        for m_name in denenecek_modeller:
+            try:
+                model = genai.GenerativeModel(m_name)
+                cevap_obj = model.generate_content(prompt)
+                cevap = cevap_obj.text
+                if cevap: break # Cevap geldiyse döngüden çık
+            except:
+                continue # Bu model olmadıysa sıradakine geç
         
-        st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
-        with st.chat_message("assistant", avatar="🌾"):
-            st.write(cevap)
+        if cevap:
+            st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
+            with st.chat_message("assistant", avatar="🌾"): st.write(cevap)
+            # Kayıt işlemi
+            try:
+                requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: st.session_state.oturum, ENTRY_CHAT_MSG: soru, ENTRY_CHAT_ROLE: "user"})
+                requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: st.session_state.oturum, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
+            except: pass
+        else:
+            st.error("Gardaşım Google modellerine ulaşamadım. API Key'ini bir kontrol et hele.")
             
-        requests.post(CHAT_FORM_URL, data={ENTRY_CHAT_USER: kullanici, ENTRY_CHAT_MSG: cevap, ENTRY_CHAT_ROLE: "assistant"})
-        
     except Exception as e:
-        # Eğer hala hata verirse, Streamlit önbelleğini temizlemek için
-        # sağ üstten "Rerun" veya "Clear Cache" yapman gerekebilir.
-        st.error(f"⚠️ Hata: {e}")
+        st.error(f"Emmi dalgın: {e}")
