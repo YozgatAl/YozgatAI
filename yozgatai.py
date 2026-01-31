@@ -4,53 +4,92 @@ import pandas as pd
 import requests
 import time
 
-# Ayarlar
+# ------------------------------------------------------------------
+# 1. AYARLAR VE TANIMLAMALAR
+# ------------------------------------------------------------------
 try:
+    # Google API Anahtarı (Secrets'tan çekilir)
     API_KEY = st.secrets["GOOGLE_API_KEY"]
-except Exception as e:
-    st.error("Secrets ayarı bozuk gardaşım."); st.stop()
+    
+    # E-Tablo ve Form Bilgileri
+    SPREADSHEET_ID = "1uhO7562rbctBNe4O-FDWzjUsZKf--FOGVvSg4ETqQWA"
+    UYELER_GID = "809867134"    
+    SOHBET_GID = "1043430012"   
 
-st.set_page_config(page_title="YozgatAI", page_icon="🚀")
+    # Veri Okuma Linkleri (CSV Formatında)
+    UYELER_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={UYELER_GID}"
+    SOHBET_CSV = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={SOHBET_GID}"
+
+    # Google Form Linkleri (Veri Kaydetmek İçin)
+    KAYIT_FORM_VIEW = "https://docs.google.com/forms/d/e/1FAIpQLSfmWqswFyM7P7UGxkWnNzPjUZqNTcllt34lvudQZ9vM34LoKA/viewform"
+    CHAT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfzA0QcL_-RvuBf8sMauuawvrjgReFlYme4GlBlgfcLVP_hpw/formResponse"
+    
+    # Form Entry Numaraları (Soru ve Cevapları Eşleştirmek İçin)
+    ENTRY_CHAT_USER = "entry.2029948747"
+    ENTRY_CHAT_MSG  = "entry.1854177336"
+    ENTRY_CHAT_ROLE = "entry.698806781"
+
+except Exception as e:
+    st.error(f"Ayarlarda sıkıntı var gardaşım: {e}")
+    st.stop()
+
+# ------------------------------------------------------------------
+# 2. SAYFA YAPILANDIRMASI
+# ------------------------------------------------------------------
+st.set_page_config(page_title="YozgatAI", page_icon="🚀", layout="centered")
 genai.configure(api_key=API_KEY)
 
-st.title("🚀 YozgatAI: Arıza Tespit Ekranı")
+# Verileri önbelleğe takılmadan taze çeken fonksiyon
+def verileri_oku(url):
+    try:
+        taze_url = f"{url}&t={int(time.time())}"
+        return pd.read_csv(taze_url, on_bad_lines='skip')
+    except:
+        return pd.DataFrame()
 
-# -----------------------------------------------------------
-# 🕵️‍♂️ DEDEKTİF MODU: ANAHTARIN NELERİ GÖRÜYOR?
-# -----------------------------------------------------------
-st.subheader("🔍 Google Depo Kontrolü")
-try:
-    st.write("Google'a bağlanılıyor... Modeller listeleniyor...")
-    
-    # Tüm modelleri listeleyelim
-    tum_modeller = []
-    for m in genai.list_models():
-        tum_modeller.append(m.name)
-    
-    if len(tum_modeller) > 0:
-        st.success("✅ Bağlantı Başarılı! Senin anahtarın şu modelleri görüyor:")
-        st.code(tum_modeller)
-        
-        # En uygun modeli seçip deneme yapalım
-        secilen = "models/gemini-1.5-flash" if "models/gemini-1.5-flash" in tum_modeller else tum_modeller[0]
-        st.info(f"Seçilen Model: {secilen} ile deneme yapılıyor...")
-        
-        model = genai.GenerativeModel(secilen)
-        cevap = model.generate_content("Nörüyon? (Deneme Mesajı)").text
-        st.write(f"🤖 **Emmi Cevap Verdi:** {cevap}")
-        
-    else:
-        st.error("❌ LİSTE BOŞ! Anahtarın Google'a bağlandı ama HİÇBİR modeli görmüyor.")
-        st.warning("Bu ne demek? Anahtarın 'Generative Language API' yetkisi kapalı. Yeni bir proje açman lazım.")
+# ------------------------------------------------------------------
+# 3. GİRİŞ EKRANI (Login)
+# ------------------------------------------------------------------
+if "oturum" not in st.session_state:
+    st.session_state.oturum = None
 
-except Exception as e:
-    st.error("🚨 HATA VAR GARDAŞIM!")
-    st.error(f"Hata Mesajı: {e}")
-    st.info("Kütüphane Sürümü: " + genai.__version__)
-    st.markdown("""
-    **ÇÖZÜM İÇİN ŞUNU YAP:**
-    1. [Google AI Studio](https://aistudio.google.com/app/apikey) adresine git.
-    2. Mevcut anahtarı sil.
-    3. **'Create API key in new project'** butonuna bas.
-    4. Yeni anahtarı GitHub Secrets'a yapıştır.
-    """)
+if st.session_state.oturum is None:
+    st.title("🚀 Geleceğin Yapay Zekası: YozgatAI")
+    st.markdown("---")
+    
+    tab1, tab2 = st.tabs(["🔑 Giriş Yap", "📝 Kayıt Ol"])
+
+    with tab1:
+        st.info("Gardaşım hoş geldin, bilgilerini gir hele.")
+        giris_ad = st.text_input("Kullanıcı Adı")
+        giris_sifre = st.text_input("Şifre", type="password")
+        
+        if st.button("Sisteme Gir"):
+            with st.spinner("Defter kontrol ediliyor..."):
+                df = verileri_oku(UYELER_CSV)
+            
+            if not df.empty:
+                g_ad = str(giris_ad).strip().lower()
+                g_sifre = str(giris_sifre).strip().lower()
+                basarili = False
+                
+                # Tabloda isim ve şifre eşleşmesi arıyoruz
+                for index, row in df.iterrows():
+                    for i in range(len(row) - 1):
+                        try:
+                            # Yan yana hücreleri kontrol et
+                            k_ad = str(row.iloc[i]).strip().lower()
+                            k_sifre = str(row.iloc[i+1]).strip().lower()
+                            if k_ad == g_ad and k_sifre == g_sifre:
+                                basarili = True
+                                break
+                        except: continue
+                    if basarili: break
+                
+                if basarili:
+                    st.session_state.oturum = giris_ad
+                    st.success("Giriş Başarılı! Roket kalkıyor... 🚀")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Gardaşım,
