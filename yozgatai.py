@@ -1,82 +1,83 @@
 import streamlit as st
 import google.generativeai as genai
 import pandas as pd
+import requests
 
-# --- GÜVENLİK VE BAĞLANTI ---
+# --- KASA VE FORM AYARLARI ---
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     SHEET_URL = st.secrets["GSHEET_URL"]
     
-    if "/edit" in SHEET_URL:
-        CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
-    else:
-        CSV_URL = SHEET_URL
-except Exception as e:
-    st.error("Aman kurban, Secrets ayarlarında bir kertik var!")
+    # Senin Form Numaraların (Bunları senin linkinden aldım kurban!)
+    FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfAANTySmXphVhxNLT76RN-2n7MVjnX7WyNLJrH73qRZxPcrg/formResponse"
+    ENTRY_USER = "entry.1594572083"
+    ENTRY_MESSAGE = "entry.1966407140"
+    ENTRY_ROLE = "entry.1321459799"
+
+    # Tabloyu okuma linki
+    CSV_URL = SHEET_URL.split('/edit')[0] + '/export?format=csv'
+except:
+    st.error("Kasa ayarlarında bir kertik var kurban!")
     st.stop()
 
 genai.configure(api_key=API_KEY)
 
-# --- SAYFA AYARLARI ---
-st.set_page_config(page_title="YozgatAI VIP", page_icon="🌾")
+# --- VERİ YAZMA VE ÇEKME FONKSİYONLARI ---
+def tabloya_yaz(kullanici, mesaj, rol):
+    payload = {ENTRY_USER: kullanici, ENTRY_MESSAGE: mesaj, ENTRY_ROLE: rol}
+    try:
+        requests.post(FORM_URL, data=payload)
+    except:
+        pass # Yazamazsa da dükkanı kapatmayalım
 
-# --- VERİTABANINDAN GEÇMİŞİ ÇEKME ---
 def gecmisi_getir(kullanici_adi):
     try:
         df = pd.read_csv(CSV_URL)
-        kullanici_gecmisi = df[df['kullanici'].str.lower() == kullanici_adi.lower()]
+        # Sütun isimlerini senin tabloya göre kontrol et (Kullanıcı, Mesaj, Rol)
+        # Formdan gelen sütun isimleri farklıysa burayı ona göre süzer
+        kullanici_gecmisi = df[df.iloc[:, 1].astype(str).str.lower() == kullanici_adi.lower()]
         return kullanici_gecmisi
     except:
-        return pd.DataFrame(columns=['kullanici', 'mesaj', 'rol', 'zaman'])
+        return pd.DataFrame()
 
 # --- GİRİŞ SİSTEMİ ---
-if "kullanici" not in st.session_state:
-    st.title("🛡️ YozgatAI: Giriş Kapısı")
-    st.write("Dükkana girmek için ibdil (öncelikle) bir isim de hele kurban.")
-    
-    ad = st.text_input("Adın ne?")
-    
+if "oturum" not in st.session_state:
+    st.title("🛡️ YozgatAI: VIP Oda")
+    ad = st.text_input("Adın ne kurban?")
     if st.button("Dükkana Gir"):
         if ad:
-            st.session_state.kullanici = ad.strip()
+            st.session_state.oturum = ad.strip().lower()
             st.rerun()
-        else:
-            st.warning("Adını demezsen seni yadırgarım!")
     st.stop()
 
 # --- SOHBET EKRANI ---
-st.title(f"🚀 Selamünaleyküm {st.session_state.kullanici}!")
-st.sidebar.header("Dükkan Menüsü")
-st.sidebar.write(f"👤 Kullanıcı: {st.session_state.kullanici}")
-
-if st.sidebar.button("Çıkış Yap"):
-    st.session_state.clear()
-    st.rerun()
-
-sistem_komutu = "Sen Yozgatlı samimi bir emmisin. Şiveli konuş."
-model = genai.GenerativeModel('models/gemini-flash-latest', system_instruction=sistem_komutu)
+kullanici = st.session_state.oturum
+st.title(f"🚀 Hoşgeldin {kullanici.capitalize()}!")
 
 if "mesajlar" not in st.session_state:
     st.session_state.mesajlar = []
-    gecmis_df = gecmisi_getir(st.session_state.kullanici)
+    gecmis_df = gecmisi_getir(kullanici)
     if not gecmis_df.empty:
         for _, row in gecmis_df.iterrows():
-            st.session_state.mesajlar.append({"role": row['rol'], "content": row['mesaj']})
+            st.session_state.mesajlar.append({"role": row.iloc[3], "content": row.iloc[2]})
 
 for m in st.session_state.mesajlar:
     with st.chat_message(m["role"]):
         st.write(m["content"])
 
-if soru := st.chat_input(f"Nörüyon {st.session_state.kullanici}, bir yumuş buyur..."):
+model = genai.GenerativeModel('models/gemini-flash-latest', 
+                              system_instruction="Sen Yozgatlı emmisin. Şiveli konuş.")
+
+if soru := st.chat_input("Nörüyon..."):
+    # 1. Kullanıcı mesajını kaydet ve göster
     st.session_state.mesajlar.append({"role": "user", "content": soru})
     with st.chat_message("user"):
         st.write(soru)
+    tabloya_yaz(kullanici, soru, "user")
     
-    try:
-        cevap_obj = model.generate_content(soru)
-        cevap = cevap_obj.text
-        st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
-        with st.chat_message("assistant"):
-            st.write(cevap)
-    except Exception as e:
-        st.error(f"Bir kertik çıktı kurban: {e}")
+    # 2. Emmi cevap versin
+    cevap = model.generate_content(soru).text
+    st.session_state.mesajlar.append({"role": "assistant", "content": cevap})
+    with st.chat_message("assistant"):
+        st.write(cevap)
+    tabloya_yaz(kullanici, cevap, "assistant")
