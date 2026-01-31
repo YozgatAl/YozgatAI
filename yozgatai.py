@@ -58,7 +58,7 @@ if st.session_state.oturum is None:
     tab1, tab2 = st.tabs(["🔑 Giriş Yap", "📝 Kayıt Ol"])
 
     with tab1:
-        st.info("Kullanıcı adını ve şifreni küçük-büyük harf fark etmeksizin yaz.")
+        st.info("Kullanıcı adını ve şifreni gir gardaşım.")
         giris_ad = st.text_input("Kullanıcı Adı")
         giris_sifre = st.text_input("Şifre", type="password")
         
@@ -70,7 +70,6 @@ if st.session_state.oturum is None:
                 g_sifre = str(giris_sifre).strip().lower()
                 basarili = False
                 
-                # Akıllı Tarama (Sütun kaymasına karşı)
                 for index, row in df.iterrows():
                     for i in range(len(row) - 1):
                         try:
@@ -88,7 +87,7 @@ if st.session_state.oturum is None:
                     time.sleep(1)
                     st.rerun()
                 else:
-                    st.error("Gardaşım eşleşme olmadı. Adını doğru yazdın mı?")
+                    st.error("Gardaşım eşleşme olmadı.")
             else:
                 st.error("Liste boş veya okunamadı.")
 
@@ -115,7 +114,6 @@ if "mesajlar" not in st.session_state:
     df_sohbet = verileri_oku(SOHBET_CSV)
     if not df_sohbet.empty:
         try:
-            # Sütunları bulmaya çalış (Zaman damgası kaydırmasına karşı)
             c_user, c_msg, c_role = 0, 1, 2
             cols = [c.lower() for c in df_sohbet.columns]
             if "zaman" in cols[0] or "time" in cols[0] or "timestamp" in cols[0]:
@@ -140,8 +138,9 @@ if soru := st.chat_input("Emmi burda, sor hele..."):
     except: pass
 
     try:
-        # 🛠️ İŞTE ÇÖZÜM BURADA: 'gemini-pro' (Her sürümde çalışır)
-        model = genai.GenerativeModel('gemini-pro')
+        # 🛠️ TAM ADRESİ YAZDIK: 'models/gemini-1.5-flash'
+        # Artık Google 404 diyemez!
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         prompt = f"Sen Yozgatlı, samimi, bilge ve şiveli konuşan bir emmisin. Adın YozgatAI. Kullanıcının şu sorusuna Yozgat şivesiyle cevap ver: {soru}"
         
